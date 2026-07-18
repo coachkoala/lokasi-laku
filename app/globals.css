@@ -1,0 +1,110 @@
+/* Design System & Color Tokens */
+:root {
+  --ink: #0d1712;
+  --paper: #f4f5ee;
+  --market-green: #1c3329;
+  --panel: #15251e;
+  --panel-raised: #1a2b23;
+  --ochre: #e8ad4d;
+  --ochre-soft: #f0c274;
+  --coral: #e07257;
+  --coral-soft: #ec9682;
+  --teal: #5a9385;
+  --line: rgba(242, 243, 236, 0.13);
+  --line-soft: rgba(242, 243, 236, 0.07);
+  --muted: rgba(242, 243, 236, 0.62);
+  --muted-dim: rgba(242, 243, 236, 0.44);
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  --shadow-lift: 0 4px 8px rgba(0, 0, 0, 0.24), 0 16px 40px -16px rgba(0, 0, 0, 0.5);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+}
+
+button,
+select,
+input,
+textarea {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--ochre);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(242, 243, 236, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(242, 243, 236, 0.25);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
