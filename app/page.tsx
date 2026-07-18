@@ -1,144 +1,124 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import MapArea from "@/components/MapArea";
+import { ValidationResult } from "@/types";
 import "@/styles/app.css";
 
-interface AnalysisState {
-  loading: boolean;
-  error: string | null;
-  location: {
-    address: string;
-    lat: number;
-    lng: number;
-  } | null;
-  radius: number;
-  recommendations: any[];
+interface LocationState {
+  address: string;
+  lat: number;
+  lng: number;
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<"discover" | "validate">("discover");
-  const [analysisState, setAnalysisState] = useState<AnalysisState>({
-    loading: false,
-    error: null,
-    location: null,
-    radius: 800,
-    recommendations: [],
-  });
+  const [location, setLocation] = useState<LocationState | null>(null);
+  const [radius, setRadius] = useState(800);
+  const [category, setCategory] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ValidationResult | null>(null);
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
-  const handleLocationChange = (address: string, lat: number, lng: number) => {
-    setAnalysisState((prev) => ({
-      ...prev,
-      location: { address, lat, lng },
-    }));
-  };
+  const requestIdRef = useRef(0);
 
-  const handleRadiusChange = (newRadius: number) => {
-    setAnalysisState((prev) => ({
-      ...prev,
-      radius: newRadius,
-    }));
-  };
-
-  const handleAnalyze = async () => {
-    if (!analysisState.location) {
-      setAnalysisState((prev) => ({
-        ...prev,
-        error: "Silakan pilih lokasi terlebih dahulu",
-      }));
-      return;
-    }
-
-    setAnalysisState((prev) => ({
-      ...prev,
-      loading: true,
-      error: null,
-    }));
+  const runAnalysis = useCallback(async (loc: LocationState, r: number, cat: string) => {
+    const myRequestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
+    setSelectedCompetitorId(null);
 
     try {
-      // API call akan diintegrasikan di sini
-      // const response = await fetch('/api/analyze', {
-      //   method: 'POST',
-      //   body: JSON.stringify({
-      //     lat: analysisState.location.lat,
-      //     lng: analysisState.location.lng,
-      //     radius: analysisState.radius,
-      //     mode: mode,
-      //   })
-      // });
-      // const data = await response.json();
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: loc.lat, lng: loc.lng, radius: r, category: cat }),
+      });
 
-      // Placeholder: mock recommendations
-      const mockRecommendations = [
-        {
-          id: "gap1",
-          category: "Laundry kiloan",
-          score: "Peluang tinggi",
-          scoreType: "hot",
-          description:
-            "12 kos-kosan & kampus dalam radius, cuma 1 laundry terdaftar. Rasio jauh di bawah area sejenis.",
-          competitors: 1,
-          avgRating: 3.2,
-          mapPin: { x: 48, y: 70 },
-        },
-        {
-          id: "poi1",
-          category: "Warmindo / nasi kotak",
-          score: "Cukup potensial",
-          scoreType: "medium",
-          description:
-            "Area padat kos, jam makan siang & malam belum banyak pilihan murah di bawah 800m.",
-          competitors: 4,
-          avgRating: 3.6,
-          mapPin: { x: 45, y: 35 },
-        },
-        {
-          id: "poi2",
-          category: "Fotokopi & alat tulis",
-          score: "Cukup potensial",
-          scoreType: "medium",
-          description:
-            "Dekat kampus tapi titik fotokopi terdekat berjarak 1.1km, di luar radius nyaman jalan kaki.",
-          competitors: 0,
-          avgRating: null,
-          mapPin: { x: 30, y: 60 },
-        },
-      ];
+      const responseJson = await response.json();
 
-      setAnalysisState((prev) => ({
-        ...prev,
-        loading: false,
-        recommendations: mockRecommendations,
-      }));
+      if (myRequestId !== requestIdRef.current) return; // ada request lebih baru, hasil ini dibuang
+
+      if (!responseJson.success) {
+        throw new Error(responseJson.error || "Analisis gagal, coba lagi.");
+      }
+
+      setResult(responseJson.data);
+      setLoading(false);
     } catch (err) {
-      setAnalysisState((prev) => ({
-        ...prev,
-        loading: false,
-        error:
-          err instanceof Error ? err.message : "Terjadi kesalahan saat analisis",
-      }));
+      if (myRequestId !== requestIdRef.current) return;
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat analisis");
+      setResult(null);
+      setLoading(false);
     }
-  };
+  }, []);
+
+  // Auto-analyze setiap kali lokasi/radius/kategori berubah (debounced),
+  // hanya jalan kalau lokasi & kategori sama-sama sudah terisi.
+  useEffect(() => {
+    if (!location || !category.trim()) return;
+    const timeout = setTimeout(() => {
+      runAnalysis(location, radius, category);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [location, radius, category, runAnalysis]);
+
+  // Timer durasi live selama loading berjalan
+  useEffect(() => {
+    if (!loading) {
+      setElapsedMs(0);
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => setElapsedMs(Date.now() - start), 200);
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  // User klik langsung di peta: pindahkan pin ke titik itu (analisa otomatis
+  // jalan lewat effect di atas begitu lat/lng berubah), lalu isi alamat
+  // asli begitu reverse geocoding selesai.
+  const handleMapClick = useCallback((lat: number, lng: number) => {
+    setLocation({ address: "Memuat alamat...", lat, lng });
+
+    fetch(`/api/geocode?lat=${lat}&lng=${lng}`)
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success) {
+          setLocation({ address: result.data.formattedAddress, lat, lng });
+        } else {
+          setLocation({ address: "Titik terpilih", lat, lng });
+        }
+      })
+      .catch(() => {
+        setLocation({ address: "Titik terpilih", lat, lng });
+      });
+  }, []);
 
   return (
     <div className="app-container">
       <Sidebar
-        mode={mode}
-        onModeChange={setMode}
-        location={analysisState.location}
-        radius={analysisState.radius}
-        onLocationChange={handleLocationChange}
-        onRadiusChange={handleRadiusChange}
-        loading={analysisState.loading}
-        error={analysisState.error}
-        recommendations={analysisState.recommendations}
-        onAnalyze={handleAnalyze}
+        location={location}
+        radius={radius}
+        onLocationChange={(address, lat, lng) => setLocation({ address, lat, lng })}
+        onRadiusChange={setRadius}
+        category={category}
+        onCategoryChange={setCategory}
+        loading={loading}
+        elapsedMs={elapsedMs}
+        error={error}
+        result={result}
+        selectedCompetitorId={selectedCompetitorId}
+        onSelectCompetitor={setSelectedCompetitorId}
       />
       <MapArea
-        location={analysisState.location}
-        radius={analysisState.radius}
-        recommendations={analysisState.recommendations}
+        location={location}
+        radius={radius}
+        result={result}
+        selectedCompetitorId={selectedCompetitorId}
+        onCompetitorMarkerClick={setSelectedCompetitorId}
+        onMapClick={handleMapClick}
       />
     </div>
   );
